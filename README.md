@@ -18,7 +18,7 @@ Claude Code에서 아래 두 명령을 실행합니다.
 PR을 올릴 브랜치에서 아래처럼 요청합니다.
 
 ```
-/pretty-korean-pull-request
+/pretty-korean-pull-request:create
 ```
 
 "PR 만들어줘", "PR 올려줘"처럼 말해도 스킬이 동작합니다.

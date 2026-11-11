@@ -1,6 +1,6 @@
 ---
-name: pretty-korean-pull-request
-description: 현재 브랜치의 변경 사항으로 짧고 자연스러운 한국어 PR 제목과 본문을 작성하고, 사용자 확인을 받은 뒤 gh로 PR을 생성한다. "PR 생성", "PR 만들어줘", "PR 올려줘", "풀리퀘 작성", "/pretty-korean-pull-request" 요청 시 사용한다.
+name: create
+description: 현재 브랜치의 변경 사항으로 짧고 자연스러운 한국어 PR 제목과 본문을 작성하고, 사용자 확인을 받은 뒤 gh로 PR을 생성한다. "PR 생성", "PR 만들어줘", "PR 올려줘", "풀리퀘 작성", "/pretty-korean-pull-request:create" 요청 시 사용한다.
 ---
 
 현재 브랜치의 변경 사항을 바탕으로 한국어 PR을 작성하고 생성한다.
