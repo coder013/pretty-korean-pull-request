@@ -1,0 +1,5 @@
+.DS_Store
+
+# 개발용 도구 (openspec)
+.claude/
+openspec/

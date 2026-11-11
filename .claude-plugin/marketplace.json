@@ -1,0 +1,18 @@
+{
+  "name": "pretty-korean-pull-request",
+  "owner": {
+    "name": "coder013"
+  },
+  "metadata": {
+    "description": "짧고 자연스러운 한국어 PR 작성 스킬 배포용 마켓플레이스",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "pretty-korean-pull-request",
+      "source": "./plugins/pretty-korean-pull-request",
+      "description": "현재 브랜치의 변경 사항으로 짧고 자연스러운 한국어 PR 제목과 본문을 작성하고, 사용자 확인을 받은 뒤 gh로 PR을 생성합니다.",
+      "category": "productivity"
+    }
+  ]
+}
