@@ -43,8 +43,12 @@ export type Draft = {
 
 export type Screen = 'idle' | 'list' | 'reviewing' | 'feedback' | 'posting' | 'done'
 
+export type EditField = 'body' | 'suggestion' | 'summary'
+
 export type Panel = {
   screen: Screen
+  cursor?: number
+  editing?: { field: EditField; id: number }
   repo: string
   prs: PullRequest[]
   target?: { number: number; title: string }
@@ -55,6 +59,6 @@ export type Panel = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'pretty-korean-pull-request': { panel: Shaped<Panel> }
+    'pretty-korean-pull-request': { panel: Shaped<Panel>; hidden: Shaped<string[]> }
   }
 }
