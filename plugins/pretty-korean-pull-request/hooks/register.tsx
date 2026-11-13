@@ -11,7 +11,6 @@ import type {
   Severity,
 } from '../types'
 
-const PANE = 'review'
 const PREFIX = '[리뷰 패널]'
 
 // 저장 형식이 바뀌면 shape 태그를 올린다. 예전 형식으로 저장된 값은 버려진다.
@@ -28,6 +27,15 @@ const EVENTS: { value: ReviewEvent; label: string }[] = [
 ]
 const BODY_ROWS = 3
 const SUGGESTION_ROWS = 2
+const HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+
+// 심각도 배지 색. 테마 키를 써서 밝은 테마와 어두운 테마에서 모두 읽히게 한다.
+const BADGE: Record<Severity, string> = {
+  버그: 'error',
+  제안: 'suggestion',
+  질문: 'warning',
+  사소: 'inactive',
+}
 
 const FEEDBACK_SCHEMA = {
   type: 'object',
@@ -123,7 +131,7 @@ export const register: Register = on => {
     })
     await $.tool.register({
       name: 'show_reviewing',
-      description: 'pretty-korean-pull-request:review 스킬 전용. 리뷰 패널에 리뷰 중 화면을 보여 준다.',
+      description: 'pretty-korean-pull-request:review 스킬 전용. 리뷰 리뷰 밴드에 리뷰 중 화면을 보여 준다.',
       inputSchema: {
         type: 'object',
         required: ['number', 'title'],
@@ -133,7 +141,7 @@ export const register: Register = on => {
     await $.tool.register({
       name: 'show_feedback',
       description:
-        'pretty-korean-pull-request:review 스킬 전용. 리뷰 패널에 피드백 편집 화면을 보여 준다. 사용자가 게시하면 "[리뷰 패널] 게시 요청" 메시지와 JSON이, 취소하면 "[리뷰 패널] 취소" 메시지가 온다.',
+        'pretty-korean-pull-request:review 스킬 전용. 리뷰 리뷰 밴드에 피드백 편집 화면을 보여 준다. 사용자가 게시하면 "[리뷰 패널] 게시 요청" 메시지와 JSON이, 취소하면 "[리뷰 패널] 취소" 메시지가 온다.',
       inputSchema: {
         type: 'object',
         required: ['repo', 'number', 'title', 'headSha', 'isOwnPr', 'summary', 'recommendedEvent', 'items'],
@@ -165,17 +173,15 @@ export const register: Register = on => {
   on('tool.call', { tool: 'mcp__pretty-korean-pull-request__show_pr_list' }, async ($, e) => {
     const input = e as unknown as { repo: string; prs: PullRequest[] }
     await update($, panel, (): Panel => ({ screen: 'list', repo: input.repo, prs: input.prs }))
-    await $.ui.open({ id: PANE, title: `열린 PR (${input.prs.length})`, focus: true })
 
-    return { result: `패널에 PR ${input.prs.length}개를 표시했습니다. 사용자의 선택을 기다립니다.` }
+    return { result: `리뷰 밴드에 PR ${input.prs.length}개를 표시했습니다. 사용자의 선택을 기다립니다.` }
   })
 
   on('tool.call', { tool: 'mcp__pretty-korean-pull-request__show_reviewing' }, async ($, e) => {
     const input = e as unknown as { number: number; title: string }
     await update($, panel, (state): Panel => ({ ...state, screen: 'reviewing', target: input }))
-    await $.ui.open({ id: PANE, title: `리뷰 중: #${input.number}` })
 
-    return { result: '패널에 리뷰 중 화면을 표시했습니다.' }
+    return { result: '리뷰 밴드에 리뷰 중 화면을 표시했습니다.' }
   })
 
   on('tool.call', { tool: 'mcp__pretty-korean-pull-request__show_feedback' }, async ($, e) => {
@@ -191,181 +197,242 @@ export const register: Register = on => {
       items: review.items,
     }
     await update($, panel, (state): Panel => ({ ...state, screen: 'feedback', review: clean, draft: draftOf(clean) }))
-    await $.ui.open({ id: PANE, title: `리뷰: #${clean.number}`, focus: true })
 
-    return { result: `패널에 피드백 ${clean.items.length}개를 표시했습니다. 사용자의 게시나 취소를 기다립니다.` }
+    return { result: `리뷰 밴드에 피드백 ${clean.items.length}개를 표시했습니다. 사용자의 게시나 취소를 기다립니다.` }
   })
 
   on('tool.call', { tool: 'mcp__pretty-korean-pull-request__show_done' }, async ($, e) => {
     const input = e as unknown as { url: string }
     await update($, panel, (state): Panel => ({ ...state, screen: 'done', resultUrl: input.url }))
 
-    return { result: '패널에 완료 화면을 표시했습니다.' }
+    return { result: '리뷰 밴드에 완료 화면을 표시했습니다.' }
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button, Input } = $.ui.resolve(e)
+  // 입력창 바로 위 밴드에 그린다. 비어 있는 입력창에서 숫자를 누르면 밴드의 버튼이 눌리고,
+  // 글자 단축키와 본문 편집은 밴드에 포커스가 있을 때(ctrl+x tab 또는 클릭) 동작한다.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const state = await read($, panel)
-    const rows = e.viewport?.rows ?? 24
+    if (state.screen === 'idle' || e.props.hasSurvey) {
+      return next(e)
+    }
 
+    const { Box, Text, Button, Input } = $.ui.resolve(e)
     const send = (text: string) => void $.prompt.submit({ text })
     const setDraft = (fn: (draft: Draft) => Draft) =>
       void update($, panel, (current): Panel => (current.draft ? { ...current, draft: fn(current.draft) } : current))
+    const close = () => void update($, panel, (current): Panel => ({ ...current, screen: 'idle' }))
+    const hotkey = (index: number) => (index < HOTKEYS.length ? { hotkey: HOTKEYS[index] } : {})
+
+    const badge = (severity: Severity) => (
+      <Text backgroundColor={BADGE[severity]} color="inverseText" bold>
+        {` ${severity} `}
+      </Text>
+    )
+
+    const frame = (title: string, right: string, body: any, footer: any) => (
+      <Box flexDirection="column" borderStyle="round" borderColor="claude" paddingX={1}>
+        <Box flexDirection="row" justifyContent="space-between" gap={2}>
+          <Text bold color="claude" wrap="truncate-end">
+            {title}
+          </Text>
+          <Text dimColor>{right}</Text>
+        </Box>
+        <Box flexDirection="column" marginY={1}>
+          {body}
+        </Box>
+        {footer}
+      </Box>
+    )
+
+    const closeButton = <Button key="close" plain hotkey="x" label="닫기" onPress={close} />
 
     if (state.screen === 'list') {
-      return (
-        <Box flexDirection="column">
-          <Text dimColor>{state.repo}  Enter로 리뷰할 PR을 고릅니다.</Text>
-          {state.prs.map(pr => (
-            <Button
-              key={`pr:${pr.number}`}
-              plain
-              onPress={() => {
-                void update($, panel, (current): Panel => ({
-                  ...current,
-                  screen: 'reviewing',
-                  target: { number: pr.number, title: pr.title },
-                }))
-                send(`${PREFIX} PR #${pr.number} 선택`)
-              }}
-            >
-              #{pr.number} {pr.title} <Text dimColor>@{pr.author} +{pr.additions} -{pr.deletions}</Text>
-              {pr.isReviewRequested ? <Text color="yellow"> 리뷰 요청됨</Text> : ''}
-            </Button>
-          ))}
-        </Box>
+      return frame(
+        `PR 리뷰 · ${state.repo}`,
+        `열린 PR ${state.prs.length}개`,
+        state.prs.map((pr, index) => (
+          <Button
+            key={`pr:${pr.number}`}
+            plain
+            {...hotkey(index)}
+            onPress={() => {
+              void update($, panel, (current): Panel => ({
+                ...current,
+                screen: 'reviewing',
+                target: { number: pr.number, title: pr.title },
+              }))
+              send(`${PREFIX} PR #${pr.number} 선택`)
+            }}
+          >
+            <Text bold>#{pr.number}</Text> {pr.title}  <Text dimColor>@{pr.author}</Text>{' '}
+            <Text color="diffAdded">+{pr.additions}</Text> <Text color="diffRemoved">-{pr.deletions}</Text>
+            {pr.isReviewRequested ? <Text color="warning"> ● 리뷰 요청됨</Text> : ''}
+          </Button>
+        )),
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text dimColor>숫자를 누르면 그 PR을 리뷰합니다.</Text>
+          {closeButton}
+        </Box>,
       )
     }
 
     if (state.screen === 'reviewing' || state.screen === 'posting') {
-      const label = state.screen === 'reviewing' ? '리뷰하고 있습니다' : '게시하고 있습니다'
+      const number = state.target?.number ?? state.review?.number
+      const title = state.target?.title ?? state.review?.title ?? ''
+      const label =
+        state.screen === 'reviewing'
+          ? '리뷰하고 있습니다. 바뀐 파일을 모두 읽고 있어요.'
+          : '게시하고 있습니다.'
 
-      return (
-        <Box flexDirection="column">
-          <Text>
-            #{state.target?.number ?? state.review?.number} {state.target?.title ?? state.review?.title}
-          </Text>
-          <Text dimColor>{label}...</Text>
-        </Box>
+      return frame(
+        `#${number} ${title}`,
+        state.screen === 'reviewing' ? '리뷰 중' : '게시 중',
+        <Text>
+          <Text color="claude">● </Text>
+          {label}
+        </Text>,
+        <Text dimColor>끝나면 이 자리에 결과가 나옵니다.</Text>,
       )
     }
 
     if (state.screen === 'done') {
-      return (
+      return frame(
+        `#${state.review?.number ?? ''} ${state.review?.title ?? ''}`,
+        '게시 완료',
         <Box flexDirection="column">
-          <Text>리뷰를 게시했습니다.</Text>
+          <Text color="success" bold>
+            ✓ 리뷰를 게시했습니다.
+          </Text>
           <Text dimColor>{state.resultUrl ?? ''}</Text>
-        </Box>
+        </Box>,
+        <Box flexDirection="row" justifyContent="flex-end">
+          {closeButton}
+        </Box>,
       )
     }
 
     if (state.screen !== 'feedback' || !state.review || !state.draft) {
-      return <Text dimColor>리뷰할 PR이 없습니다.</Text>
+      return next(e)
     }
 
     const { review, draft } = state
     const count = review.items.filter(item => draft.selected[item.id]).length
-    // 피드백마다 머리줄, 본문, 제안 코드, 여백을 합친 높이로 전부 펼칠 수 있는지 판단한다.
-    const perItem = 1 + BODY_ROWS + SUGGESTION_ROWS + 2
-    const isCompact = review.items.length * perItem + 12 > rows
+    const current = review.items.find(item => item.id === draft.expanded) ?? review.items[0]
+    const toggle = (id: number) =>
+      setDraft(one => ({ ...one, selected: { ...one.selected, [id]: !one.selected[id] } }))
 
-    return (
-      <Box flexDirection="column" gap={1}>
-        {review.items.map(item => {
-          const isOpen = !isCompact || draft.expanded === item.id
-          const body = draft.bodies[item.id] ?? ''
+    const list = review.items.map((item, index) => {
+      const isOpen = current?.id === item.id
 
-          return (
-            <Box key={`item:${item.id}`} flexDirection="column">
-              <Box flexDirection="row" gap={1}>
-                <Button
-                  key={`toggle:${item.id}`}
-                  plain
-                  onPress={() =>
-                    setDraft(current => ({
-                      ...current,
-                      selected: { ...current.selected, [item.id]: !current.selected[item.id] },
-                    }))
-                  }
-                >
-                  {draft.selected[item.id] ? '[x]' : '[ ]'}
-                </Button>
-                <Button
-                  key={`open:${item.id}`}
-                  plain
-                  onPress={() => setDraft(current => ({ ...current, expanded: item.id }))}
-                >
-                  {item.severity} <Text dimColor>{location(item)}</Text>
-                </Button>
-              </Box>
-              {isOpen ? (
-                <Box flexDirection="column">
-                  <Input
-                    key={`body:${item.id}`}
-                    label="본문"
-                    rows={BODY_ROWS}
-                    value={body}
-                    submitLabel="다음"
-                    onInput={value => setDraft(current => ({ ...current, bodies: { ...current.bodies, [item.id]: value } }))}
-                    onSubmit={value => setDraft(current => ({ ...current, bodies: { ...current.bodies, [item.id]: value } }))}
-                  />
-                  <Input
-                    key={`suggestion:${item.id}`}
-                    label="제안"
-                    rows={SUGGESTION_ROWS}
-                    placeholder="제안 코드 없음"
-                    value={draft.suggestions[item.id] ?? ''}
-                    submitLabel="다음"
-                    onInput={value =>
-                      setDraft(current => ({ ...current, suggestions: { ...current.suggestions, [item.id]: value } }))
-                    }
-                    onSubmit={value =>
-                      setDraft(current => ({ ...current, suggestions: { ...current.suggestions, [item.id]: value } }))
-                    }
-                  />
-                </Box>
-              ) : (
-                <Text dimColor wrap="truncate-end">
-                  {body.split('\n')[0]}
-                </Text>
-              )}
-            </Box>
-          )
-        })}
+      return (
+        <Box key={`item:${item.id}`} flexDirection="row" gap={1}>
+          <Button key={`toggle:${item.id}`} plain onPress={() => toggle(item.id)}>
+            {draft.selected[item.id] ? <Text color="success">[x]</Text> : <Text dimColor>[ ]</Text>}
+          </Button>
+          <Button
+            key={`open:${item.id}`}
+            plain
+            {...hotkey(index)}
+            onPress={() => setDraft(one => ({ ...one, expanded: item.id }))}
+          >
+            {badge(item.severity)} <Text bold={isOpen} dimColor={!draft.selected[item.id]}>{location(item)}</Text>
+            {isOpen ? <Text color="claude"> ◀</Text> : ''}
+          </Button>
+        </Box>
+      )
+    })
+
+    const detail = current ? (
+      <Box
+        key={`detail:${current.id}`}
+        flexDirection="column"
+        borderStyle="single"
+        borderColor={BADGE[current.severity]}
+        paddingX={1}
+        marginTop={1}
+      >
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text>
+            {badge(current.severity)} <Text bold>{location(current)}</Text>
+          </Text>
+          <Button key="toggle-current" plain hotkey="s" onPress={() => toggle(current.id)}>
+            {draft.selected[current.id] ? '선택 해제' : '선택'}
+          </Button>
+        </Box>
         <Input
-          key="summary"
-          label="총평"
-          rows={2}
-          placeholder="총평 없음"
-          value={draft.summary}
+          key={`body:${current.id}`}
+          label="본문"
+          rows={BODY_ROWS}
+          value={draft.bodies[current.id] ?? ''}
           submitLabel="다음"
-          onInput={value => setDraft(current => ({ ...current, summary: value }))}
-          onSubmit={value => setDraft(current => ({ ...current, summary: value }))}
+          onInput={value => setDraft(one => ({ ...one, bodies: { ...one.bodies, [current.id]: value } }))}
+          onSubmit={value => setDraft(one => ({ ...one, bodies: { ...one.bodies, [current.id]: value } }))}
         />
-        {review.isOwnPr ? (
-          <Text dimColor>내 PR이라 코멘트로 게시합니다.</Text>
-        ) : (
-          <Box flexDirection="row" gap={1}>
-            <Text>결과</Text>
-            {EVENTS.map(one => (
-              <Button
-                key={`event:${one.value}`}
-                plain
-                onPress={() => setDraft(current => ({ ...current, event: one.value }))}
-              >
-                {draft.event === one.value ? `(o) ${one.label}` : `( ) ${one.label}`}
-                {review.recommendedEvent === one.value ? <Text dimColor> 추천</Text> : ''}
-              </Button>
-            ))}
-          </Box>
-        )}
+        <Input
+          key={`suggestion:${current.id}`}
+          label="제안 코드"
+          rows={SUGGESTION_ROWS}
+          placeholder="제안 코드 없음"
+          value={draft.suggestions[current.id] ?? ''}
+          submitLabel="다음"
+          onInput={value => setDraft(one => ({ ...one, suggestions: { ...one.suggestions, [current.id]: value } }))}
+          onSubmit={value => setDraft(one => ({ ...one, suggestions: { ...one.suggestions, [current.id]: value } }))}
+        />
+      </Box>
+    ) : (
+      <Text dimColor>찾은 피드백이 없습니다. 총평만 게시할 수 있습니다.</Text>
+    )
+
+    const EVENT_KEYS: Record<ReviewEvent, string> = { COMMENT: 'c', REQUEST_CHANGES: 'r', APPROVE: 'v' }
+    const events = review.isOwnPr ? (
+      <Text dimColor>결과  내 PR이라 코멘트로 게시합니다.</Text>
+    ) : (
+      <Box flexDirection="row" gap={2}>
+        <Text bold>결과</Text>
+        {EVENTS.map(one => (
+          <Button
+            key={`event:${one.value}`}
+            plain
+            hotkey={EVENT_KEYS[one.value]}
+            onPress={() => setDraft(d => ({ ...d, event: one.value }))}
+          >
+            {draft.event === one.value ? <Text color="claude">(o) {one.label}</Text> : `( ) ${one.label}`}
+            {review.recommendedEvent === one.value ? <Text dimColor> 추천</Text> : ''}
+          </Button>
+        ))}
+      </Box>
+    )
+
+    return frame(
+      `#${review.number} ${review.title}`,
+      `${review.items.length}개 중 ${count}개 선택`,
+      <Box flexDirection="column">
+        {list}
+        {detail}
+        <Box flexDirection="column" marginTop={1}>
+          {events}
+          <Input
+            key="summary"
+            label="총평"
+            rows={2}
+            placeholder="총평 없음"
+            value={draft.summary}
+            submitLabel="다음"
+            onInput={value => setDraft(d => ({ ...d, summary: value }))}
+            onSubmit={value => setDraft(d => ({ ...d, summary: value }))}
+          />
+        </Box>
+      </Box>,
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text dimColor>숫자 펼치기 · ctrl+x tab으로 들어가 편집</Text>
         <Box flexDirection="row" gap={2}>
           <Button
             key="publish"
             variant="primary"
+            hotkey="a"
             onPress={() => {
               const request = publishRequest(review, draft)
-              void update($, panel, (current): Panel => ({ ...current, screen: 'posting' }))
+              void update($, panel, (one): Panel => ({ ...one, screen: 'posting' }))
               send(`${PREFIX} 게시 요청\n\`\`\`json\n${JSON.stringify(request, null, 2)}\n\`\`\``)
             }}
           >
@@ -373,15 +440,16 @@ export const register: Register = on => {
           </Button>
           <Button
             key="cancel"
+            hotkey="x"
             onPress={() => {
-              void update($, panel, (current): Panel => ({ ...current, screen: 'idle' }))
+              close()
               send(`${PREFIX} 취소`)
             }}
           >
             취소
           </Button>
         </Box>
-      </Box>
+      </Box>,
     )
   })
 }

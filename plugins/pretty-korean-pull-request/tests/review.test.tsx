@@ -2,14 +2,15 @@ import { expect, test } from 'claude-code/testing'
 
 const PANE = {
   plugin: 'pretty-korean-pull-request',
-  component: 'Pane',
-  requestId: 'review',
+  component: 'AbovePrompt',
+  requestId: 'above-prompt',
   props: {
-    title: '리뷰',
-    isFocused: true,
+    hasSurvey: false,
+    isCollapsed: false,
+    isWorking: false,
+    maxRows: 40,
     bodyColumns: 100,
-    placement: 'dock',
-    scroll: { offset: 0, bodyRows: 60 },
+    scroll: { offset: 0, bodyRows: 40 },
     view: {},
   },
 } as const
@@ -144,7 +145,7 @@ test('취소하면 취소 메시지만 보낸다', async ($, on) => {
   await ui.unmount()
 })
 
-test('패널이 낮으면 펼친 피드백 하나만 편집 칸을 보여 준다', async ($, on) => {
+test('펼친 피드백 하나만 편집 칸을 보여 준다', async ($, on) => {
   await setUp($, on)
   await callTool($, 'show_feedback', REVIEW)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal', viewport: { rows: 20, columns: 100 } })
@@ -154,5 +155,19 @@ test('패널이 낮으면 펼친 피드백 하나만 편집 칸을 보여 준다
   await ui.press({ key: 'open:2' })
   expect(await ui.find({ key: 'body:1' })).toBeUndefined()
   expect(await ui.find({ key: 'body:2' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('리뷰 중이 아니면 밴드를 그리지 않고, 닫으면 사라진다', async ($, on) => {
+  await setUp($, on)
+  const idle = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await idle.keepsBeneath()).toBe(true)
+  await idle.unmount()
+
+  await callTool($, 'show_pr_list', { repo: 'acme/app', prs: PRS })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.keepsBeneath()).toBe(false)
+  await ui.press({ key: 'close' })
+  expect(await ui.keepsBeneath()).toBe(true)
   await ui.unmount()
 })
