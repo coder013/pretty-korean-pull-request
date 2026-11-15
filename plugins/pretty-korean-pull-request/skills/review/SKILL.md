@@ -1,68 +1,79 @@
 ---
 name: review
-description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리뷰하고, 사용자가 리뷰 패널에서 피드백을 고르고 고친 뒤 GitHub 리뷰로 게시한다. "PR 리뷰", "리뷰해줘", "코드 리뷰", "/pretty-korean-pull-request:review" 요청 시, 그리고 "[리뷰 패널]"로 시작하는 메시지를 받았을 때 사용한다.
+description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리뷰하고, 사용자가 로컬 브라우저 리뷰 페이지에서 피드백을 고르고 고친 뒤 GitHub 리뷰로 게시한다. "PR 리뷰", "리뷰해줘", "코드 리뷰", "/pretty-korean-pull-request:review" 요청 시 사용한다.
 ---
 
-열린 PR을 골라 한국어로 리뷰하고, 사용자가 패널에서 확인한 피드백만 게시한다.
+열린 PR을 골라 한국어로 리뷰하고, 사용자가 리뷰 페이지에서 확인한 피드백만 게시한다.
 
-리뷰 패널은 입력창 바로 위에 붙는 밴드로 그려진다. 역할을 나눈다. **패널은 보여 주고 입력을 받기만 하고, GitHub 조회와 리뷰와 게시는 이 스킬이 한다.** 패널과는 아래 도구와 메시지로 주고받는다.
+리뷰 페이지는 이 스킬이 띄우는 로컬 서버가 브라우저 탭으로 보여 준다. 역할을 나눈다. **페이지는 보여 주고 입력을 받기만 하고, GitHub 조회와 리뷰와 게시는 이 스킬이 한다.** 서버와는 `scripts/review_server.py`의 하위 명령으로 주고받는다. 아래에서 `SERVER`는 `python3 <이 스킬 폴더>/scripts/review_server.py`를 뜻한다. 이 스킬 폴더는 스킬을 불러올 때 표시되는 Base directory다.
 
-| 방향 | 수단 | 언제 |
-|---|---|---|
-| 스킬 → 패널 | `mcp__pretty-korean-pull-request__show_pr_list` | PR 목록을 보여 줄 때 |
-| 스킬 → 패널 | `mcp__pretty-korean-pull-request__show_reviewing` | 리뷰를 시작할 때 |
-| 스킬 → 패널 | `mcp__pretty-korean-pull-request__show_feedback` | 피드백 초안을 넘길 때 |
-| 스킬 → 패널 | `mcp__pretty-korean-pull-request__show_done` | 게시를 마쳤을 때 |
-| 패널 → 스킬 | `[리뷰 패널] PR #<번호> 선택` 메시지 | 사용자가 PR을 골랐을 때 |
-| 패널 → 스킬 | `[리뷰 패널] 게시 요청` 메시지 + JSON | 사용자가 게시 버튼을 눌렀을 때 |
-| 패널 → 스킬 | `[리뷰 패널] 취소` 메시지 | 사용자가 취소했을 때 |
+| 명령 | 하는 일 |
+|---|---|
+| `SERVER start --repo <저장소> --viewer <login>` | 표준 입력으로 받은 PR 목록으로 서버를 띄우고 브라우저를 연다 |
+| `SERVER wait --dir <dir>` | 페이지에서 사용자가 한 다음 동작을 JSON 한 줄로 출력하고 끝난다 |
+| `SERVER ranges --diff <파일>` | 파일별로 코멘트를 달 수 있는 줄 범위를 출력한다 |
+| `SERVER feedback --dir <dir> --review <파일> --diff <파일>` | 피드백 편집 화면을 보여 준다 |
+| `SERVER done --dir <dir> --url <url>` | 게시 결과를 보여 주고 서버를 끝낸다 |
+| `SERVER error --dir <dir> --message <문장>` | 오류를 보여 주고 서버를 끝낸다 |
+| `SERVER stop --dir <dir>` | 서버를 끝낸다 |
 
-도구는 패널 화면만 바꾸고 바로 끝난다. 사용자의 선택은 다음 메시지로 온다. 그래서 도구를 호출한 뒤에는 기다리지 말고 턴을 끝낸다.
+모든 명령은 JSON 한 줄을 출력한다. `ok`가 `false`이면 `error`에 이유가 있다.
 
-**대화창에는 아무것도 쓰지 않는다.** 사용자에게 필요한 내용은 모두 패널에 있고, 패널 도구 호출과 리뷰 중의 명령 실행과 패널 메시지는 대화창에서 숨겨진다. 그러니 진행 상황("diff를 모두 읽었습니다"), 찾은 피드백 요약, 다음 할 일 안내를 쓰지 않고, 도구 호출만 하고 텍스트 없이 턴을 끝낸다. 대화창에 쓰는 것은 아래 경우뿐이다.
+**사용자의 동작은 `wait`로 기다린다.** `wait`는 Bash 도구의 `run_in_background: true`로 실행하고, 텍스트 없이 턴을 끝낸다. 사용자가 페이지에서 동작하면 `wait`가 끝나고 완료 알림이 온다. 알림을 받으면 `wait`의 출력을 읽고 아래 절차대로 이어서 처리한다. **`wait`를 포그라운드로 실행하거나, 끝나기를 기다리며 다른 명령으로 확인하지 않는다.**
+
+**대화창에는 아무것도 쓰지 않는다.** 사용자는 페이지에서 모든 것을 확인한다. 진행 상황("diff를 모두 읽었습니다"), 찾은 피드백 요약, 다음 할 일 안내를 쓰지 않고, 명령만 실행하고 텍스트 없이 턴을 끝낸다. 대화창에 쓰는 것은 아래 경우뿐이다.
 - 열린 PR이 없을 때
-- 패널 도구를 불러올 수 없을 때
-- `gh` 명령이나 게시가 실패했을 때
+- 브라우저를 열지 못했을 때(페이지 주소 안내)
+- `python3`가 없거나, 명령이나 게시가 실패했을 때
 
-도구가 목록에 없으면 ToolSearch로 불러온다. 그래도 없으면 패널(mod)이 로드되지 않은 것이므로, 플러그인을 최신으로 업데이트하고 Claude Code를 다시 시작하라고 안내한 뒤 종료한다.
-
-## 1. PR 목록
+## 1. 페이지 열기
 
 1. 저장소와 현재 사용자를 확인한다.
    ```bash
    gh repo view --json nameWithOwner --jq .nameWithOwner
    gh api user --jq .login
    ```
-2. 열린 PR을 모두 가져온다.
+2. 열린 PR 목록을 서버에 넘겨 페이지를 연다.
    ```bash
-   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests
+   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests \
+     | SERVER start --repo <저장소> --viewer <login>
    ```
-3. 열린 PR이 없으면 패널을 열지 않고, 리뷰할 PR이 없다고 알린 뒤 종료한다.
-4. `show_pr_list`를 호출한다. `prs`의 각 항목은 아래처럼 만든다.
-   - `author`: `author.login`
-   - `isReviewRequested`: `reviewRequests`에 현재 사용자의 `login`이 있으면 `true`
-5. 텍스트 없이 턴을 끝낸다.
+3. 출력에 따라 처리한다.
+   - `empty: true`: 리뷰할 열린 PR이 없다고 알리고 종료한다.
+   - `ok: true`: 출력의 `dir`을 이후 모든 명령에 쓴다. `opened`가 `false`이면 브라우저를 열지 못한 것이므로, `url`을 대화창에 알리고 직접 열어 달라고 한 줄로 안내한다.
+   - 그 밖의 실패: 오류를 그대로 알리고 종료한다. `python3`가 없으면 설치가 필요하다고 안내한다.
+4. `SERVER wait --dir <dir>`를 백그라운드로 실행하고, 텍스트 없이 턴을 끝낸다.
 
-## 2. 리뷰
+## 2. `wait` 결과 처리
 
-`[리뷰 패널] PR #<번호> 선택` 메시지를 받으면 시작한다.
+| 출력 | 처리 |
+|---|---|
+| `{"type":"select","number":N}` | 3~4단계(리뷰, 피드백 쓰기)를 진행한다 |
+| `{"type":"publish",...}` | 5단계(게시)를 진행한다 |
+| `{"type":"cancel"}`, `{"type":"close"}`, `{"type":"closed"}` | 아무것도 게시하지 않고, 텍스트 없이 턴을 끝낸다 |
 
-1. `show_reviewing`을 호출한다.
-2. PR 정보와 diff를 받는다.
+`closed`는 사용자가 페이지를 30분 넘게 버려 두었거나 서버가 끝난 경우다. 다시 `wait`를 실행하지 않는다.
+
+흐름이 멈췄을 때(사용자가 "리뷰 계속", "리뷰 페이지가 그대로야"라고 말할 때)는 같은 `dir`로 `wait`를 다시 백그라운드로 실행한다. 이미 받지 못한 동작이 있으면 바로 출력된다. 서버가 끝났으면 `closed`가 나오므로, 그때는 스킬을 처음부터 다시 실행하라고 안내한다.
+
+## 3. 리뷰
+
+페이지는 PR을 고른 순간 리뷰 중 화면으로 바뀐다. 따로 알릴 필요는 없다.
+
+1. PR 정보와 diff를 받는다. diff는 세션 폴더에 저장하고 Read로 읽는다. 길면 나눠서 읽는다.
    ```bash
    gh pr view <번호> --json title,author,headRefOid,files,body
-   gh pr diff <번호> > <임시 파일>
+   gh pr diff <번호> > <dir>/pr.diff
    ```
-   diff는 임시 파일에 저장하고 Read로 읽는다. 길면 나눠서 읽는다.
-3. diff 밖의 코드를 봐야 하면 PR head를 받아서 읽는다. **작업 트리와 현재 브랜치는 바꾸지 않는다.** `git checkout`, `git switch`, `gh pr checkout`은 쓰지 않는다.
+2. diff 밖의 코드를 봐야 하면 PR head를 받아서 읽는다. **작업 트리와 현재 브랜치는 바꾸지 않는다.** `git checkout`, `git switch`, `gh pr checkout`은 쓰지 않는다.
    ```bash
    git fetch origin pull/<번호>/head
    git show <headRefOid>:<경로>
    ```
-4. **diff의 모든 파일을 끝까지 읽는다.** PR이 크다는 이유로 파일을 건너뛰지 않는다. 읽으면서 찾은 문제는 바로 기록해 둔다.
-5. 같은 PR에 이미 달린 리뷰 코멘트는 확인하지 않아도 된다. 겹치는 지적이 있어도 그대로 쓴다.
+3. **diff의 모든 파일을 끝까지 읽는다.** PR이 크다는 이유로 파일을 건너뛰지 않는다. 읽으면서 찾은 문제는 바로 기록해 둔다.
+4. 같은 PR에 이미 달린 리뷰 코멘트는 확인하지 않아도 된다. 겹치는 지적이 있어도 그대로 쓴다.
 
-## 3. 피드백 쓰기
+## 4. 피드백 쓰기
 
 먼저 [../create/references/fluent-korean.md](../create/references/fluent-korean.md)를 읽고, 그 지침을 피드백 본문과 총평에 적용한다. 지침은 요약하지 말고 예시까지 그대로 참고한다.
 
@@ -70,22 +81,7 @@ description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리�
 
 - **이번 변경(diff)에 대한 피드백만 쓴다.** 바꾸지 않은 코드의 오래된 문제는 지적하지 않는다.
 - 바꾼 코드 때문에 diff 밖의 코드가 깨지면(시그니처를 바꿨는데 호출부를 안 고친 경우 등), 그 원인이 된 diff 줄에 피드백을 단다.
-- 코멘트는 diff에 포함된 줄에만 달 수 있다. 아래 명령으로 파일별 코멘트 가능 범위를 구하고, 범위 밖을 가리키는 지적은 피드백에서 빼서 총평에 넣는다. 여러 줄 피드백은 시작 줄과 끝 줄이 같은 범위 안에 있어야 한다.
-  ```bash
-  python3 -c '
-  import re, sys, json
-  ranges, path = {}, None
-  for line in open(sys.argv[1], encoding="utf-8"):
-      if line.startswith("+++ "):
-          path = None if line.strip() == "+++ /dev/null" else line[6:].rstrip("\n")
-      m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
-      if m and path:
-          start, count = int(m.group(1)), int(m.group(2) or 1)
-          if count:
-              ranges.setdefault(path, []).append([start, start + count - 1])
-  print(json.dumps(ranges, ensure_ascii=False))
-  ' <임시 파일>
-  ```
+- 코멘트는 diff에 포함된 줄에만 달 수 있다. `SERVER ranges --diff <dir>/pr.diff`로 파일별 코멘트 가능 범위를 구하고, 범위 밖을 가리키는 지적은 피드백에서 빼서 총평에 넣는다. 여러 줄 피드백은 시작 줄과 끝 줄이 같은 범위 안에 있어야 한다.
 
 ### 심각도
 
@@ -127,38 +123,42 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
 
 ### 넘기기
 
-`show_feedback`을 호출한다. `items`의 `id`는 1부터 매기고, 심각도 순서(`버그`, `제안`, `질문`, `사소`)로, 같은 심각도 안에서는 파일과 줄 순서로 정렬한다. `headSha`에는 리뷰에 쓴 `headRefOid`를 넣는다.
-
-피드백이 하나도 없으면 빈 `items`와 총평을 넘긴다.
-
-호출한 뒤에는 텍스트 없이 턴을 끝낸다. 피드백 개수와 내용은 패널에 나온다.
-
-## 4. 게시
-
-`[리뷰 패널] 게시 요청` 메시지를 받았을 때만 게시한다. 이 메시지가 사용자의 승인이다. **다른 경로로는 게시하지 않는다.**
-
-1. 메시지의 JSON 블록을 읽는다. 형식은 `{ repo, number, headSha, event, summary, comments: [{ severity, path, line, startLine?, body, suggestion? }] }`이다. 패널에서 사용자가 고친 내용이 들어 있으므로, **본문을 다시 고치지 않는다.**
-2. `comments`가 비어 있고 `summary`도 비어 있으면 게시하지 않고, 게시할 내용이 없다고 알린다.
-3. 요청 본문을 만들어 임시 파일에 저장한다.
-   - `commit_id`: `headSha`
-   - `event`: `event`
-   - `body`: `summary`. 비어 있으면 넣지 않는다.
-   - `comments[]`
-     - `path`, `line`, `side: "RIGHT"`
-     - `startLine`이 있으면 `start_line`과 `start_side: "RIGHT"`
-     - `body`: `**[<severity>]** <body>`. `suggestion`이 있으면 빈 줄 하나 뒤에 아래 블록을 붙인다.
-       ````
-       ```suggestion
-       <suggestion>
-       ```
-       ````
-4. 게시한다.
-   ```bash
-   gh api repos/<repo>/pulls/<number>/reviews --method POST --input <임시 파일> --jq .html_url
+1. 리뷰 내용을 `<dir>/review.json`에 쓴다(Write 도구).
+   ```json
+   {
+     "repo": "<저장소>", "number": 7, "title": "<PR 제목>", "author": "<작성자 login>",
+     "headSha": "<리뷰에 쓴 headRefOid>", "isOwnPr": false,
+     "summary": "<총평>", "recommendedEvent": "REQUEST_CHANGES",
+     "items": [
+       { "id": 1, "severity": "버그", "path": "src/A.kt", "line": 42, "body": "<본문>", "suggestion": "<대체 코드>" },
+       { "id": 2, "severity": "제안", "path": "src/B.kt", "startLine": 8, "line": 10, "body": "<본문>" }
+     ]
+   }
    ```
-5. 성공하면 `show_done`에 리뷰 URL을 넘기고, 텍스트 없이 턴을 끝낸다. URL은 패널에 나온다.
-6. 실패하면 `gh`의 오류 메시지를 그대로 보여 주고, 게시하려던 피드백 내용을 대화에 남겨 직접 옮길 수 있게 한다. 줄 위치 오류이거나 PR에 새 커밋이 올라온 경우라면, 다시 리뷰할지 묻는다.
+   - `line`은 diff 오른쪽(바뀐 뒤) 기준 줄 번호이고, 여러 줄이면 `startLine`을 함께 쓴다.
+   - `suggestion`은 없으면 뺀다.
+   - `id`는 1부터 매기고, 심각도 순서(`버그`, `제안`, `질문`, `사소`)로, 같은 심각도 안에서는 파일과 줄 순서로 정렬한다.
+   - 피드백이 하나도 없으면 `items`를 빈 배열로 둔다.
+2. 페이지에 넘긴다.
+   ```bash
+   SERVER feedback --dir <dir> --review <dir>/review.json --diff <dir>/pr.diff
+   ```
+   - `diff 범위 밖을 가리키는 피드백이 있습니다`로 실패하면, 오류에 나온 피드백을 총평으로 옮기고 다시 실행한다.
+   - `closed: true`이면 사용자가 리뷰 중에 취소했거나 서버가 끝난 것이다. 텍스트 없이 턴을 끝낸다.
+3. `SERVER wait --dir <dir>`를 백그라운드로 실행하고, 텍스트 없이 턴을 끝낸다. 피드백 개수와 내용은 페이지에 나온다.
 
-## 5. 취소
+## 5. 게시
 
-`[리뷰 패널] 취소` 메시지를 받으면 아무것도 게시하지 않고, 텍스트 없이 턴을 끝낸다.
+`wait`가 `{"type":"publish", "repo", "number", "payload", "comments"}`를 출력했을 때만 게시한다. 사용자가 페이지에서 게시를 누른 것이 승인이다. **다른 경로로는 게시하지 않는다.**
+
+`payload`는 서버가 사용자의 선택과 편집 내용으로 만든 GitHub 리뷰 API 요청 본문 파일이다. 심각도 라벨(`**[버그]**`)과 `suggestion` 블록, 리뷰 결과, 총평이 이미 들어 있다. **내용을 다시 고치지 않고 그대로 게시한다.**
+
+1. 게시한다.
+   ```bash
+   gh api repos/<repo>/pulls/<number>/reviews --method POST --input <payload> --jq .html_url
+   ```
+2. 성공하면 `SERVER done --dir <dir> --url <리뷰 URL>`을 실행하고, 텍스트 없이 턴을 끝낸다. URL은 페이지에 나온다.
+3. 실패하면 아래 순서로 처리한다. 서버가 끝나면 세션 폴더가 지워지므로, `payload`를 먼저 읽는다.
+   1. `payload` 파일을 Read로 읽는다.
+   2. `SERVER error --dir <dir> --message "<gh 오류 메시지>"`를 실행한다.
+   3. 대화창에 `gh`의 오류 메시지를 그대로 보여 주고, 게시하려던 피드백(파일:줄, 본문)을 남겨 직접 옮길 수 있게 한다. 줄 위치 오류이거나 PR에 새 커밋이 올라온 경우라면, 다시 리뷰할지 묻는다.

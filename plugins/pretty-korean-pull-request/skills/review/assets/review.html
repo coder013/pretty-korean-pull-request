@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>PR 리뷰</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --line: #e3e6eb; --text: #1d2129; --muted: #6b7380;
+  --accent: #3b6ef5; --accent-soft: #e8eefe; --focus: #3b6ef5;
+  --bug: #d33a3a; --bug-soft: #fde8e8; --sug: #2f7d4f; --sug-soft: #e3f4ea;
+  --ask: #b26a00; --ask-soft: #fdf1dc; --nit: #6b7380; --nit-soft: #eef0f3;
+  --add: #e6f6ea; --add-strong: #c9ecd3; --del: #fcebea; --del-strong: #f6cfcc; --hl: #fff4c2;
+  --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171c; --panel: #1d2027; --line: #2d313a; --text: #e6e8ec; --muted: #8d95a3;
+    --accent: #7a9cff; --accent-soft: #24304d; --focus: #7a9cff;
+    --bug: #ff7b72; --bug-soft: #3d1f1f; --sug: #6bd08f; --sug-soft: #1c3326;
+    --ask: #f0b35a; --ask-soft: #3a2c15; --nit: #9aa2af; --nit-soft: #2a2e36;
+    --add: #17301f; --add-strong: #1f4a2c; --del: #3a1d1d; --del-strong: #5a2626; --hl: #3d3714;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+}
+button, textarea, input { font: inherit; color: inherit; }
+.app { height: 100%; display: flex; flex-direction: column; }
+header {
+  display: flex; align-items: baseline; gap: 12px; padding: 14px 20px;
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .sub { color: var(--muted); white-space: nowrap; }
+header .right { margin-left: auto; color: var(--muted); white-space: nowrap; }
+main { flex: 1; min-height: 0; display: flex; }
+footer {
+  border-top: 1px solid var(--line); background: var(--panel); padding: 10px 20px;
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+}
+.keys { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
+kbd {
+  font: 11px var(--code); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+  padding: 0 5px; background: var(--bg); color: var(--text);
+}
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 14px;
+  cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* PR 목록 */
+.list { flex: 1; overflow: auto; padding: 12px 20px; }
+.pr {
+  display: grid; grid-template-columns: 64px 1fr auto auto; gap: 12px; align-items: center;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid transparent; cursor: pointer;
+}
+.pr:hover { background: var(--panel); }
+.pr.active { background: var(--accent-soft); border-color: var(--accent); }
+.pr .num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr .author { color: var(--muted); font-size: 12px; margin-left: 8px; }
+.pr .size { font: 12px var(--code); white-space: nowrap; }
+.plus { color: var(--sug); } .minus { color: var(--bug); }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+
+/* 상태 화면 */
+.center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px; text-align: center; }
+.center h2 { margin: 0; font-size: 20px; }
+.center p { margin: 0; color: var(--muted); max-width: 560px; }
+.spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.center a { color: var(--accent); word-break: break-all; }
+.center.error h2 { color: var(--bug); }
+
+/* 피드백 편집 */
+.items { width: 340px; flex: none; overflow: auto; border-right: 1px solid var(--line); background: var(--panel); padding: 8px; }
+.item {
+  display: grid; grid-template-columns: 20px auto 1fr; gap: 8px; align-items: center;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+}
+.item:hover { background: var(--bg); }
+.item.active { background: var(--accent-soft); border-color: var(--accent); }
+.item.off .loc { color: var(--muted); text-decoration: line-through; }
+.item input { margin: 0; width: 15px; height: 15px; accent-color: var(--accent); }
+.loc { font: 12px var(--code); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.badge { font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 99px; white-space: nowrap; }
+.badge.버그 { color: var(--bug); background: var(--bug-soft); }
+.badge.제안 { color: var(--sug); background: var(--sug-soft); }
+.badge.질문 { color: var(--ask); background: var(--ask-soft); }
+.badge.사소 { color: var(--nit); background: var(--nit-soft); }
+.detail { flex: 1; min-width: 0; overflow: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.detail .path { font: 13px var(--code); color: var(--muted); }
+.diff { border: 1px solid var(--line); border-radius: 8px; overflow: auto; background: var(--panel); max-height: 46vh; }
+.diff table { border-collapse: collapse; width: 100%; font: 12px/1.6 var(--code); }
+.diff td { padding: 0 8px; white-space: pre; vertical-align: top; }
+.diff td.no { color: var(--muted); text-align: right; user-select: none; width: 1%; }
+.diff td.mark { width: 1%; user-select: none; color: var(--muted); }
+.diff tr.add { background: var(--add); }
+.diff tr.del { background: var(--del); }
+.diff tr.hl td { background: var(--hl); }
+.diff tr.hl td.mark { box-shadow: inset 3px 0 0 var(--accent); }
+.diff tr.head td { color: var(--muted); background: var(--bg); padding: 2px 8px; }
+.diff .gap td { color: var(--muted); text-align: center; background: var(--bg); }
+label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+textarea {
+  width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  background: var(--panel); line-height: 1.6; color: var(--text); font-weight: 400; font-size: 14px;
+}
+textarea.code { font: 12px/1.6 var(--code); white-space: pre; }
+textarea:focus { outline: 2px solid var(--focus); outline-offset: -1px; border-color: transparent; }
+.bottom { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 20px; display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.events { display: flex; gap: 6px; }
+.event {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; background: var(--panel);
+  display: flex; gap: 6px; align-items: center;
+}
+.event.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.event:disabled { opacity: .4; cursor: default; }
+.event .hint { color: var(--muted); font-size: 11px; font-weight: 400; }
+.note { color: var(--muted); font-size: 12px; }
+.warn { color: var(--bug); font-size: 13px; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+'use strict';
+
+const EVENTS = [
+  { value: 'COMMENT', label: '코멘트' },
+  { value: 'REQUEST_CHANGES', label: '변경 요청' },
+  { value: 'APPROVE', label: '승인' },
+];
+const CONTEXT = 10; // 강조한 줄 앞뒤로 보여 줄 줄 수
+
+let state = null;      // 서버에서 받은 마지막 상태
+let version = 0;
+let cursor = 0;        // 목록에서 고른 위치
+let draft = null;      // 피드백 편집 내용. 게시할 때 한 번에 보낸다
+let notice = '';
+let polling = null;
+
+// ------------------------------------------------------------ DOM 도우미
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (value === undefined || value === null || value === false) continue;
+    if (key === 'class') node.className = value;
+    else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+    else if (key === 'value' || key === 'checked' || key === 'disabled') node[key] = value;
+    else node.setAttribute(key, value === true ? '' : value);
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
+const key = (...names) => names.map(n => el('kbd', {}, n));
+const hint = (keys, text) => el('span', {}, ...keys, ' ', text);
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = isMac ? '⌘' : 'Ctrl';
+
+// ------------------------------------------------------------ 서버
+
+async function post(name, body) {
+  const res = await fetch('api/' + name, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const value = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(value.error || '요청이 거부되었습니다.');
+  return value;
+}
+
+async function poll() {
+  try {
+    const res = await fetch('api/state', { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    const next = await res.json();
+    if (next.version !== version) {
+      version = next.version;
+      enter(next);
+    }
+  } catch (e) {
+    if (!state || !['done', 'error', 'closed'].includes(state.phase)) {
+      enter({ phase: 'closed', message: '리뷰 페이지 서버가 종료되었습니다.' });
+    }
+    stop();
+  }
+}
+
+function stop() {
+  if (polling) clearInterval(polling);
+  polling = null;
+}
+
+function enter(next) {
+  state = next;
+  if (next.phase === 'feedback' && (!draft || draft.number !== next.number)) {
+    draft = makeDraft(next.review);
+  }
+  if (['done', 'error', 'closed'].includes(next.phase)) stop();
+  notice = '';
+  render();
+}
+
+// ------------------------------------------------------------ 편집 내용
+
+function makeDraft(review) {
+  const d = {
+    number: review.number,
+    cursor: 0,
+    selected: {}, bodies: {}, suggestions: {},
+    summary: review.summary || '',
+    event: review.isOwnPr ? 'COMMENT' : (review.recommendedEvent || 'COMMENT'),
+  };
+  for (const item of review.items) {
+    d.selected[item.id] = item.severity !== '사소';
+    d.bodies[item.id] = item.body || '';
+    d.suggestions[item.id] = item.suggestion || '';
+  }
+  return d;
+}
+
+function chosen() {
+  return state.review.items.filter(item => draft.selected[item.id]);
+}
+
+async function publish() {
+  if (!state || state.phase !== 'feedback') return;
+  const items = chosen();
+  const summary = draft.summary.trim();
+  if (!items.length && !summary) {
+    return say('게시할 내용이 없습니다. 피드백을 하나 이상 고르거나 총평을 써 주세요.');
+  }
+  const blank = items.find(item => !draft.bodies[item.id].trim());
+  if (blank) {
+    draft.cursor = state.review.items.indexOf(blank);
+    render();
+    return say('본문이 비어 있는 피드백이 있습니다. 본문을 쓰거나 선택을 해제해 주세요.');
+  }
+  try {
+    await post('publish', {
+      event: state.review.isOwnPr ? 'COMMENT' : draft.event,
+      summary,
+      comments: items.map(item => ({
+        id: item.id,
+        body: draft.bodies[item.id],
+        suggestion: draft.suggestions[item.id],
+      })),
+    });
+    await poll();
+  } catch (e) {
+    say(e.message);
+  }
+}
+
+async function cancel() {
+  try { await post('cancel'); await poll(); } catch (e) { say(e.message); }
+}
+
+async function closePage() {
+  try { await post('close'); await poll(); } catch (e) { say(e.message); }
+}
+
+async function select(number) {
+  try { await post('select', { number }); await poll(); } catch (e) { say(e.message); }
+}
+
+function say(text) {
+  notice = text;
+  const box = document.getElementById('notice');
+  if (box) box.textContent = text;
+}
+
+// ------------------------------------------------------------ 화면
+
+function render() {
+  const app = document.getElementById('app');
+  const active = document.activeElement;
+  const focusId = active && active.id;
+  app.replaceChildren(...screen());
+  document.title = titleOf();
+  if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
+  const current = app.querySelector('.active');
+  if (current) current.scrollIntoView({ block: 'nearest' });
+  const hl = app.querySelector('tr.hl');
+  if (hl) hl.scrollIntoView({ block: 'center' });
+}
+
+function titleOf() {
+  if (!state) return 'PR 리뷰';
+  if (state.number) return `#${state.number} 리뷰`;
+  return 'PR 리뷰';
+}
+
+function prHeader(right) {
+  return el('header', {},
+    el('h1', {}, state.number ? `#${state.number} ${state.title || (state.review && state.review.title) || ''}` : 'PR 리뷰'),
+    el('span', { class: 'sub' }, state.repo || ''),
+    right ? el('span', { class: 'right' }, right) : null,
+  );
+}
+
+function screen() {
+  if (!state) return [el('div', { class: 'center' }, el('div', { class: 'spinner' }))];
+  switch (state.phase) {
+    case 'list': return listScreen();
+    case 'reviewing': return waitScreen('변경 사항을 읽고 있습니다',
+      'Claude가 diff를 끝까지 읽고 피드백을 쓰는 중입니다. 다 쓰면 이 화면이 피드백 편집 화면으로 바뀝니다.', true);
+    case 'feedback': return feedbackScreen();
+    case 'posting': return waitScreen('GitHub에 게시하고 있습니다', '잠시만 기다려 주세요.', false);
+    case 'done': return doneScreen();
+    case 'error': return endScreen('게시하지 못했습니다', state.message, true);
+    default: return endScreen('리뷰를 마쳤습니다', state.message || '리뷰 페이지 서버가 종료되었습니다.', false);
+  }
+}
+
+function listScreen() {
+  const prs = state.prs || [];
+  cursor = Math.min(cursor, Math.max(prs.length - 1, 0));
+  const rows = prs.map((pr, i) => el('div', {
+    class: 'pr' + (i === cursor ? ' active' : ''),
+    onclick: () => { cursor = i; select(pr.number); },
+    onmousemove: () => { if (cursor !== i) { cursor = i; render(); } },
+  },
+    el('span', { class: 'num' }, `#${pr.number}`),
+    el('span', { class: 'title' }, pr.title, el('span', { class: 'author' }, pr.author)),
+    pr.isReviewRequested ? el('span', { class: 'tag' }, '리뷰 요청됨') : el('span'),
+    el('span', { class: 'size' }, el('span', { class: 'plus' }, `+${pr.additions}`), ' ', el('span', { class: 'minus' }, `−${pr.deletions}`)),
+  ));
+  return [
+    el('header', {}, el('h1', {}, '리뷰할 PR을 고르세요'), el('span', { class: 'sub' }, state.repo), el('span', { class: 'right' }, `열린 PR ${prs.length}개`)),
+    el('main', {}, el('div', { class: 'list' }, rows.length ? rows : el('div', { class: 'empty' }, '열린 PR이 없습니다.'))),
+    el('footer', {},
+      el('div', { class: 'keys' }, hint(key('↑', '↓'), '이동'), hint(key('Enter'), '리뷰 시작'), hint(key('Esc'), '닫기')),
+      el('span', { class: 'warn', id: 'notice' }, notice),
+      el('span', { class: 'spacer' }),
+      el('button', { class: 'btn', onclick: closePage }, '닫기'),
+    ),
+  ];
+}
+
+function waitScreen(title, text, cancellable) {
+  return [
+    prHeader(),
+    el('main', {}, el('div', { class: 'center' },
+      el('div', { class: 'spinner' }), el('h2', {}, title), el('p', {}, text),
+      el('span', { class: 'warn', id: 'notice' }, notice),
+      cancellable ? el('button', { class: 'btn', onclick: cancel }, '리뷰 취소') : null,
+    )),
+  ];
+}
+
+function doneScreen() {
+  return [
+    prHeader(),
+    el('main', {}, el('div', { class: 'center' },
+      el('h2', {}, '리뷰를 게시했습니다'),
+      state.url ? el('a', { href: state.url, target: '_blank', rel: 'noopener noreferrer' }, state.url) : null,
+      el('p', {}, '이 탭은 닫아도 됩니다.'),
+    )),
+  ];
+}
+
+function endScreen(title, text, isError) {
+  return [
+    state.number ? prHeader() : el('header', {}, el('h1', {}, 'PR 리뷰')),
+    el('main', {}, el('div', { class: 'center' + (isError ? ' error' : '') },
+      el('h2', {}, title), el('p', {}, text || ''),
+      el('p', {}, isError ? '오류와 게시하려던 내용은 Claude Code 대화창에도 남겨 두었습니다.' : '이 탭은 닫아도 됩니다.'),
+    )),
+  ];
+}
+
+// ------------------------------------------------------------ 피드백 편집 화면
+
+function locOf(item) {
+  return item.startLine && item.startLine !== item.line
+    ? `${item.path}:${item.startLine}-${item.line}` : `${item.path}:${item.line}`;
+}
+
+function feedbackScreen() {
+  const review = state.review;
+  const items = review.items;
+  draft.cursor = Math.min(draft.cursor, Math.max(items.length - 1, 0));
+  const count = chosen().length;
+
+  const list = items.map((item, i) => el('div', {
+    class: 'item' + (i === draft.cursor ? ' active' : '') + (draft.selected[item.id] ? '' : ' off'),
+    onclick: () => { draft.cursor = i; render(); },
+  },
+    el('input', {
+      type: 'checkbox', checked: !!draft.selected[item.id], tabindex: '-1',
+      onclick: e => { e.stopPropagation(); draft.selected[item.id] = e.target.checked; draft.cursor = i; render(); },
+    }),
+    el('span', { class: 'badge ' + item.severity }, item.severity),
+    el('span', { class: 'loc', title: locOf(item) }, '‎' + locOf(item)),
+  ));
+
+  const item = items[draft.cursor];
+  const detail = item ? detailOf(item) : el('div', { class: 'empty' },
+    '줄에 달 피드백이 없습니다. 총평만 게시하거나 취소할 수 있습니다.');
+
+  const events = EVENTS.map((ev, i) => {
+    const locked = review.isOwnPr && ev.value !== 'COMMENT';
+    return el('button', {
+      class: 'event' + (draft.event === ev.value ? ' on' : ''), disabled: locked, tabindex: '-1',
+      onclick: () => { draft.event = ev.value; render(); },
+    }, el('kbd', {}, String(i + 1)), ev.label,
+      review.recommendedEvent === ev.value && !review.isOwnPr ? el('span', { class: 'hint' }, '추천') : null);
+  });
+
+  return [
+    prHeader(`피드백 ${items.length}개 중 ${count}개 게시`),
+    el('main', {},
+      el('div', { class: 'items' }, list.length ? list : el('div', { class: 'empty' }, '피드백 없음')),
+      el('div', { class: 'detail' }, detail),
+    ),
+    el('div', { class: 'bottom' },
+      el('label', { class: 'field' }, '총평',
+        el('textarea', {
+          id: 'summary', rows: 2, value: draft.summary, placeholder: '비워 두면 총평 없이 게시합니다.',
+          oninput: e => { draft.summary = e.target.value; },
+        })),
+      el('div', { class: 'row' },
+        el('div', { class: 'events' }, events),
+        review.isOwnPr ? el('span', { class: 'note' }, '내 PR이라 코멘트로만 게시할 수 있습니다.') : null,
+        el('span', { class: 'warn', id: 'notice' }, notice),
+        el('span', { class: 'spacer' }),
+        el('button', { class: 'btn', onclick: cancel }, '취소'),
+        el('button', { class: 'btn primary', onclick: publish }, count ? `게시 ${count}개` : '게시', ` ${MOD}↵`),
+      ),
+      el('div', { class: 'keys' },
+        hint(key('↑', '↓'), '이동'), hint(key('Space'), '게시 여부'), hint(key('Enter'), '본문 편집'),
+        hint(key('s'), '총평 편집'), hint(key('Esc'), '편집 끝내기'), hint(key('1', '2', '3'), '리뷰 결과'),
+        hint(key(MOD, 'Enter'), '게시'),
+      ),
+    ),
+  ];
+}
+
+function detailOf(item) {
+  return [
+    el('div', { class: 'row' },
+      el('span', { class: 'badge ' + item.severity }, item.severity),
+      el('span', { class: 'path' }, locOf(item)),
+    ),
+    diffOf(item),
+    el('label', { class: 'field' }, '본문',
+      el('textarea', {
+        id: 'body', rows: 5, value: draft.bodies[item.id],
+        oninput: e => { draft.bodies[item.id] = e.target.value; },
+      })),
+    el('label', { class: 'field' }, '제안 코드 (비우면 제안 코드 없이 게시합니다)',
+      el('textarea', {
+        id: 'suggestion', class: 'code', rows: Math.max(2, (draft.suggestions[item.id].match(/\n/g) || []).length + 2),
+        value: draft.suggestions[item.id], spellcheck: 'false',
+        oninput: e => { draft.suggestions[item.id] = e.target.value; },
+      })),
+  ];
+}
+
+function diffOf(item) {
+  const hunks = (state.files && state.files[item.path]) || [];
+  const from = item.startLine || item.line;
+  const to = item.line;
+  const hunk = hunks.find(h => h.newStart <= from && to <= h.newStart + h.newCount - 1);
+  if (!hunk) return el('div', { class: 'empty' }, '이 줄의 diff를 찾지 못했습니다.');
+
+  const lines = hunk.lines;
+  const marked = lines.map(l => l.n !== null && l.n >= from && l.n <= to);
+  const first = marked.indexOf(true);
+  const last = marked.lastIndexOf(true);
+  const lo = Math.max(0, first - CONTEXT);
+  const hi = Math.min(lines.length - 1, last + CONTEXT);
+
+  const rows = [el('tr', { class: 'head' }, el('td', { colspan: '4' }, hunk.header))];
+  if (lo > 0) rows.push(el('tr', { class: 'gap' }, el('td', { colspan: '4' }, `⋯ ${lo}줄 생략`)));
+  for (let i = lo; i <= hi; i++) {
+    const l = lines[i];
+    const cls = (l.t === '+' ? 'add' : l.t === '-' ? 'del' : '') + (marked[i] ? ' hl' : '');
+    rows.push(el('tr', { class: cls },
+      el('td', { class: 'no' }, l.o ?? ''), el('td', { class: 'no' }, l.n ?? ''),
+      el('td', { class: 'mark' }, l.t), el('td', {}, l.s)));
+  }
+  if (hi < lines.length - 1) rows.push(el('tr', { class: 'gap' }, el('td', { colspan: '4' }, `⋯ ${lines.length - 1 - hi}줄 생략`)));
+  return el('div', { class: 'diff' }, el('table', {}, el('tbody', {}, rows)));
+}
+
+// ------------------------------------------------------------ 키보드
+
+function typing() {
+  const a = document.activeElement;
+  return a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT');
+}
+
+document.addEventListener('keydown', e => {
+  if (!state) return;
+  const mod = e.metaKey || e.ctrlKey;
+
+  if (state.phase === 'feedback' && mod && e.key === 'Enter') {
+    e.preventDefault();
+    if (typing()) document.activeElement.blur();
+    publish();
+    return;
+  }
+  if (typing()) {
+    if (e.key === 'Escape') { e.preventDefault(); document.activeElement.blur(); }
+    return;
+  }
+  if (mod || e.altKey) return;
+
+  if (state.phase === 'list') {
+    const n = (state.prs || []).length;
+    if (e.key === 'ArrowDown' || e.key === 'j') { cursor = Math.min(cursor + 1, n - 1); render(); }
+    else if (e.key === 'ArrowUp' || e.key === 'k') { cursor = Math.max(cursor - 1, 0); render(); }
+    else if (e.key === 'Enter' && n) select(state.prs[cursor].number);
+    else if (e.key === 'Escape') closePage();
+    else return;
+    e.preventDefault();
+    return;
+  }
+
+  if (state.phase === 'reviewing' && e.key === 'Escape') { e.preventDefault(); cancel(); return; }
+
+  if (state.phase !== 'feedback') return;
+  const items = state.review.items;
+  const item = items[draft.cursor];
+  if (e.key === 'ArrowDown' || e.key === 'j') draft.cursor = Math.min(draft.cursor + 1, items.length - 1);
+  else if (e.key === 'ArrowUp' || e.key === 'k') draft.cursor = Math.max(draft.cursor - 1, 0);
+  else if (e.key === ' ' && item) draft.selected[item.id] = !draft.selected[item.id];
+  else if (e.key === 'Enter' && item) { e.preventDefault(); return focusEnd('body'); }
+  else if (e.key === 's') { e.preventDefault(); return focusEnd('summary'); }
+  else if (['1', '2', '3'].includes(e.key)) {
+    const ev = EVENTS[Number(e.key) - 1].value;
+    if (state.review.isOwnPr && ev !== 'COMMENT') return say('내 PR이라 코멘트로만 게시할 수 있습니다.');
+    draft.event = ev;
+  } else return;
+  e.preventDefault();
+  render();
+});
+
+function focusEnd(id) {
+  const box = document.getElementById(id);
+  if (!box) return;
+  box.focus();
+  box.setSelectionRange(box.value.length, box.value.length);
+}
+
+poll();
+polling = setInterval(poll, 1000);
+</script>
+</body>
+</html>

@@ -3,3 +3,4 @@
 # 개발용 도구 (openspec)
 .claude/
 openspec/
+__pycache__/
