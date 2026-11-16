@@ -162,7 +162,7 @@ def build_payload(review, choice):
 
     summary = str(choice.get("summary", "")).strip()
     if not comments and not summary:
-        raise Invalid("게시할 피드백과 총평이 없습니다.")
+        raise Invalid("게시할 피드백과 전체 의견이 없습니다.")
     event = "COMMENT" if review.get("isOwnPr") else choice.get("event")
     if event not in EVENTS:
         raise Invalid("리뷰 결과가 올바르지 않습니다.")

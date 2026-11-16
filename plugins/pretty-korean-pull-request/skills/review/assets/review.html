@@ -247,7 +247,7 @@ async function publish() {
   const items = chosen();
   const summary = draft.summary.trim();
   if (!items.length && !summary) {
-    return say('게시할 내용이 없습니다. 피드백을 하나 이상 고르거나 총평을 써 주세요.');
+    return say('게시할 내용이 없습니다. 피드백을 하나 이상 고르거나 전체 의견을 써 주세요.');
   }
   const blank = items.find(item => !draft.bodies[item.id].trim());
   if (blank) {
@@ -416,7 +416,7 @@ function feedbackScreen() {
 
   const item = items[draft.cursor];
   const detail = item ? detailOf(item) : el('div', { class: 'empty' },
-    '줄에 달 피드백이 없습니다. 총평만 게시하거나 취소할 수 있습니다.');
+    '줄에 달 피드백이 없습니다. 전체 의견만 게시하거나 취소할 수 있습니다.');
 
   const events = EVENTS.map((ev, i) => {
     const locked = review.isOwnPr && ev.value !== 'COMMENT';
@@ -434,9 +434,9 @@ function feedbackScreen() {
       el('div', { class: 'detail' }, detail),
     ),
     el('div', { class: 'bottom' },
-      el('label', { class: 'field' }, '총평',
+      el('label', { class: 'field' }, '전체 의견',
         el('textarea', {
-          id: 'summary', rows: 2, value: draft.summary, placeholder: '비워 두면 총평 없이 게시합니다.',
+          id: 'summary', rows: 2, value: draft.summary, placeholder: '비워 두면 전체 의견 없이 게시합니다.',
           oninput: e => { draft.summary = e.target.value; },
         })),
       el('div', { class: 'row' },
@@ -449,7 +449,7 @@ function feedbackScreen() {
       ),
       el('div', { class: 'keys' },
         hint(key('↑', '↓'), '이동'), hint(key('Space'), '게시 여부'), hint(key('Enter'), '본문 편집'),
-        hint(key('s'), '총평 편집'), hint(key('Esc'), '편집 끝내기'), hint(key('1', '2', '3'), '리뷰 결과'),
+        hint(key('s'), '전체 의견 편집'), hint(key('Esc'), '편집 끝내기'), hint(key('1', '2', '3'), '리뷰 결과'),
         hint(key(MOD, 'Enter'), '게시'),
       ),
     ),

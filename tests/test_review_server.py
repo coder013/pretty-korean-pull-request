@@ -142,7 +142,7 @@ class PayloadTest(unittest.TestCase):
     def test_labels_suggestion_and_multiline(self):
         payload = rs.build_payload(REVIEW, {
             "event": "REQUEST_CHANGES",
-            "summary": "  총평입니다. ",
+            "summary": "  전체 의견입니다. ",
             "comments": [
                 {"id": 1, "body": "고친 문장입니다.", "suggestion": "        val first = members.firstOrNull() ?: return\n"},
                 {"id": 2, "body": "함수로 빼면 어떨까요?", "suggestion": "  \n"},
@@ -150,7 +150,7 @@ class PayloadTest(unittest.TestCase):
         })
         self.assertEqual(payload["commit_id"], "abc123")
         self.assertEqual(payload["event"], "REQUEST_CHANGES")
-        self.assertEqual(payload["body"], "총평입니다.")
+        self.assertEqual(payload["body"], "전체 의견입니다.")
         c1, c2 = payload["comments"]
         self.assertEqual(c1, {
             "path": "src/Batch.kt", "line": 12, "side": "RIGHT",
@@ -332,7 +332,7 @@ class FlowTest(ServerCase):
 
         proc = self.start_wait()
         status, _, _ = self.page_post("publish", {
-            "event": "REQUEST_CHANGES", "summary": "총평",
+            "event": "REQUEST_CHANGES", "summary": "전체 의견",
             "comments": [{"id": 1, "body": "고친 문장", "suggestion": ""}],
         })
         self.assertEqual(status, 200)

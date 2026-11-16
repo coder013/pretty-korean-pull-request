@@ -75,13 +75,13 @@ description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리�
 
 ## 4. 피드백 쓰기
 
-먼저 [../create/references/fluent-korean.md](../create/references/fluent-korean.md)를 읽고, 그 지침을 피드백 본문과 총평에 적용한다. 지침은 요약하지 말고 예시까지 그대로 참고한다.
+먼저 [../create/references/fluent-korean.md](../create/references/fluent-korean.md)를 읽고, 그 지침을 피드백 본문과 전체 의견에 적용한다. 지침은 요약하지 말고 예시까지 그대로 참고한다.
 
 ### 범위
 
 - **이번 변경(diff)에 대한 피드백만 쓴다.** 바꾸지 않은 코드의 오래된 문제는 지적하지 않는다.
 - 바꾼 코드 때문에 diff 밖의 코드가 깨지면(시그니처를 바꿨는데 호출부를 안 고친 경우 등), 그 원인이 된 diff 줄에 피드백을 단다.
-- 코멘트는 diff에 포함된 줄에만 달 수 있다. `SERVER ranges --diff <dir>/pr.diff`로 파일별 코멘트 가능 범위를 구하고, 범위 밖을 가리키는 지적은 피드백에서 빼서 총평에 넣는다. 여러 줄 피드백은 시작 줄과 끝 줄이 같은 범위 안에 있어야 한다.
+- 코멘트는 diff에 포함된 줄에만 달 수 있다. `SERVER ranges --diff <dir>/pr.diff`로 파일별 코멘트 가능 범위를 구하고, 범위 밖을 가리키는 지적은 피드백에서 빼서 전체 의견에 넣는다. 여러 줄 피드백은 시작 줄과 끝 줄이 같은 범위 안에 있어야 한다.
 
 ### 심각도
 
@@ -112,9 +112,9 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
 - `suggestion`은 피드백이 가리키는 줄(`startLine`~`line`) 전체를 **그대로 대체**하는 코드여야 한다. 원래 들여쓰기를 지키고, 범위 밖의 줄을 넣지 않는다.
 - 확신이 없으면 넣지 않는다.
 
-### 총평과 추천 결과
+### 전체 의견과 추천 결과
 
-- 총평은 한두 문장으로 쓴다. PR 전체에 대한 인상과, 줄에 달지 못한 지적을 담는다. 쓸 내용이 없으면 빈 문자열로 둔다.
+- 전체 의견은 한두 문장으로 쓴다. PR 전체에 대한 인상과, 줄에 달지 못한 지적을 담는다. 쓸 내용이 없으면 빈 문자열로 둔다.
 - `isOwnPr`: PR 작성자의 `login`이 현재 사용자와 같으면 `true`
 - `recommendedEvent`
   - 내 PR이면 `COMMENT`
@@ -128,7 +128,7 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
    {
      "repo": "<저장소>", "number": 7, "title": "<PR 제목>", "author": "<작성자 login>",
      "headSha": "<리뷰에 쓴 headRefOid>", "isOwnPr": false,
-     "summary": "<총평>", "recommendedEvent": "REQUEST_CHANGES",
+     "summary": "<전체 의견>", "recommendedEvent": "REQUEST_CHANGES",
      "items": [
        { "id": 1, "severity": "버그", "path": "src/A.kt", "line": 42, "body": "<본문>", "suggestion": "<대체 코드>" },
        { "id": 2, "severity": "제안", "path": "src/B.kt", "startLine": 8, "line": 10, "body": "<본문>" }
@@ -143,7 +143,7 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
    ```bash
    SERVER feedback --dir <dir> --review <dir>/review.json --diff <dir>/pr.diff
    ```
-   - `diff 범위 밖을 가리키는 피드백이 있습니다`로 실패하면, 오류에 나온 피드백을 총평으로 옮기고 다시 실행한다.
+   - `diff 범위 밖을 가리키는 피드백이 있습니다`로 실패하면, 오류에 나온 피드백을 전체 의견으로 옮기고 다시 실행한다.
    - `closed: true`이면 사용자가 리뷰 중에 취소했거나 서버가 끝난 것이다. 텍스트 없이 턴을 끝낸다.
 3. `SERVER wait --dir <dir>`를 백그라운드로 실행하고, 텍스트 없이 턴을 끝낸다. 피드백 개수와 내용은 페이지에 나온다.
 
@@ -151,7 +151,7 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
 
 `wait`가 `{"type":"publish", "repo", "number", "payload", "comments"}`를 출력했을 때만 게시한다. 사용자가 페이지에서 게시를 누른 것이 승인이다. **다른 경로로는 게시하지 않는다.**
 
-`payload`는 서버가 사용자의 선택과 편집 내용으로 만든 GitHub 리뷰 API 요청 본문 파일이다. 심각도 라벨(`**[버그]**`)과 `suggestion` 블록, 리뷰 결과, 총평이 이미 들어 있다. **내용을 다시 고치지 않고 그대로 게시한다.**
+`payload`는 서버가 사용자의 선택과 편집 내용으로 만든 GitHub 리뷰 API 요청 본문 파일이다. 심각도 라벨(`**[버그]**`)과 `suggestion` 블록, 리뷰 결과, 전체 의견이 이미 들어 있다. **내용을 다시 고치지 않고 그대로 게시한다.**
 
 1. 게시한다.
    ```bash
