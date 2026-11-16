@@ -528,7 +528,7 @@ def open_browser(url):
 
 
 def pr_rows(raw, viewer):
-    """gh pr list --json number,title,author,additions,deletions,reviewRequests 출력을 페이지 형식으로 바꾼다."""
+    """gh pr list --json number,title,author,additions,deletions,reviewRequests,updatedAt 출력을 페이지 형식으로 바꾼다."""
     rows = []
     for pr in raw:
         requests = pr.get("reviewRequests") or []
@@ -539,6 +539,7 @@ def pr_rows(raw, viewer):
                 "author": (pr.get("author") or {}).get("login", ""),
                 "additions": pr.get("additions", 0),
                 "deletions": pr.get("deletions", 0),
+                "updatedAt": pr.get("updatedAt") or "",
                 "isReviewRequested": any(r.get("login") == viewer for r in requests),
             }
         )

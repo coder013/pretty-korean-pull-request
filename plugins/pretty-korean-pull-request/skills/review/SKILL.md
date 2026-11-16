@@ -35,7 +35,7 @@ description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리�
    ```
 2. 열린 PR 목록을 서버에 넘겨 페이지를 연다.
    ```bash
-   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests \
+   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests,updatedAt \
      | SERVER start --repo <저장소> --viewer <login>
    ```
 3. 출력에 따라 처리한다.
