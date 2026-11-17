@@ -26,17 +26,21 @@ OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 # gh pr list --json number,title,author,additions,deletions,reviewRequests 출력 형식
 GH_PRS = [
     {"number": 7, "title": "회원 탈퇴 배치 추가", "author": {"login": "alice"}, "additions": 40, "deletions": 3,
-     "updatedAt": "2026-11-16T01:02:03Z",
+     "updatedAt": "2026-11-16T01:02:03Z", "isDraft": False, "reviewDecision": "REVIEW_REQUIRED",
+     "latestReviews": [{"author": {"login": "carol"}, "state": "COMMENTED"}],
      "reviewRequests": [{"__typename": "Team", "slug": "backend"}, {"__typename": "User", "login": "me"}]},
-    {"number": 8, "title": "README 수정", "author": {"login": "bob"}, "additions": 1, "deletions": 1, "reviewRequests": []},
+    {"number": 8, "title": "README 수정", "author": {"login": "bob"}, "additions": 1, "deletions": 1, "reviewRequests": [],
+     "isDraft": True, "reviewDecision": "", "latestReviews": [{"author": {"login": "carol"}, "state": "APPROVED"}]},
 ]
 PRS = {
     "repo": "octo/sample",
     "prs": [
         {"number": 7, "title": "회원 탈퇴 배치 추가", "author": "alice", "additions": 40, "deletions": 3,
-         "updatedAt": "2026-11-16T01:02:03Z", "isReviewRequested": True},
+         "updatedAt": "2026-11-16T01:02:03Z", "isReviewRequested": True,
+         "isDraft": False, "review": "required"},
         {"number": 8, "title": "README 수정", "author": "bob", "additions": 1, "deletions": 1,
-         "updatedAt": "", "isReviewRequested": False},
+         "updatedAt": "", "isReviewRequested": False,
+         "isDraft": True, "review": "approved"},
     ],
 }
 
@@ -141,6 +145,25 @@ class DiffTest(unittest.TestCase):
         self.assertEqual(rs.out_of_range(bad, ranges), ["src/Batch.kt:30", "src/Batch.kt:43"])
 
 
+class PrRowsTest(unittest.TestCase):
+    def test_rows(self):
+        self.assertEqual(rs.pr_rows(GH_PRS, "me"), PRS["prs"])
+
+    def test_review_state(self):
+        cases = [
+            ({"reviewDecision": "APPROVED"}, "approved"),
+            ({"reviewDecision": "CHANGES_REQUESTED"}, "changes"),
+            ({"reviewDecision": "REVIEW_REQUIRED"}, "required"),
+            ({"reviewDecision": "REVIEW_REQUIRED", "latestReviews": [{"state": "APPROVED"}]}, "required"),
+            ({"latestReviews": [{"state": "APPROVED"}, {"state": "CHANGES_REQUESTED"}]}, "changes"),
+            ({"latestReviews": [{"state": "APPROVED"}]}, "approved"),
+            ({"latestReviews": [{"state": "COMMENTED"}]}, ""),
+            ({}, ""),
+        ]
+        for pr, expected in cases:
+            self.assertEqual(rs.review_state(pr), expected, pr)
+
+
 class PayloadTest(unittest.TestCase):
     def test_labels_suggestion_and_multiline(self):
         payload = rs.build_payload(REVIEW, {
@@ -157,11 +180,11 @@ class PayloadTest(unittest.TestCase):
         c1, c2 = payload["comments"]
         self.assertEqual(c1, {
             "path": "src/Batch.kt", "line": 12, "side": "RIGHT",
-            "body": "**[버그]** 고친 문장입니다.\n\n```suggestion\n        val first = members.firstOrNull() ?: return\n```",
+            "body": "고친 문장입니다.\n\n```suggestion\n        val first = members.firstOrNull() ?: return\n```",
         })
         self.assertEqual(c2["start_line"], 11)
         self.assertEqual(c2["start_side"], "RIGHT")
-        self.assertEqual(c2["body"], "**[제안]** 함수로 빼면 어떨까요?")
+        self.assertEqual(c2["body"], "함수로 빼면 어떨까요?")
 
     def test_own_pr_is_comment_and_empty_summary_is_omitted(self):
         review = dict(REVIEW, isOwnPr=True)
@@ -343,7 +366,7 @@ class FlowTest(ServerCase):
         self.assertEqual(event["type"], "publish")
         self.assertEqual((event["repo"], event["number"], event["comments"]), ("octo/sample", 7, 1))
         payload = json.loads(Path(event["payload"]).read_text())
-        self.assertEqual(payload["comments"][0]["body"], "**[버그]** 고친 문장")
+        self.assertEqual(payload["comments"][0]["body"], "고친 문장")
         self.assertEqual(self.state()["phase"], "posting")
 
         self.assertTrue(self.run_cmd("done", "--dir", self.dir, "--url", "https://github.com/octo/sample/pull/7#r1")["ok"])

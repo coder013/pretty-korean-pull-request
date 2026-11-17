@@ -69,7 +69,7 @@ kbd {
 .section { display: flex; align-items: center; gap: 8px; padding: 16px 8px 6px; font-size: 12px; font-weight: 600; color: var(--fg-muted); }
 .count { font-weight: 500; font-size: 11px; padding: 0 6px; border-radius: 10px; background: var(--bg-hover); color: var(--fg-muted); }
 .pr {
-  display: grid; grid-template-columns: 56px minmax(0, 1fr) 120px 76px 92px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) 160px 120px 76px 92px; gap: 12px; align-items: center;
   height: 36px; padding: 0 8px; border-radius: 6px; cursor: pointer;
 }
 .pr:hover { background: var(--bg-subtle); }
@@ -79,6 +79,12 @@ kbd {
 .pr .author, .pr .when { color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pr .size { font: 12px var(--code); text-align: right; white-space: nowrap; }
 .plus { color: var(--sug); } .minus { color: var(--bug); }
+.pr .states { display: flex; gap: 4px; }
+.st-open { --sev: var(--sug); --sev-subtle: var(--sug-subtle); }
+.st-draft { --sev: var(--nit); --sev-subtle: var(--nit-subtle); }
+.rv-approved { --sev: var(--sug); --sev-subtle: var(--sug-subtle); }
+.rv-changes { --sev: var(--bug); --sev-subtle: var(--bug-subtle); }
+.rv-required { --sev: var(--ask); --sev-subtle: var(--ask-subtle); }
 
 /* 상태 화면 */
 .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 40px; text-align: center; }
@@ -395,6 +401,8 @@ function screen() {
 
 // ------------------------------------------------------------ PR 목록
 
+const REVIEW_LABEL = { approved: '✓ 승인됨', changes: '✕ 변경 요청됨', required: '● 리뷰 대기' };
+
 function prSections() {
   const byTime = (a, b) => (Date.parse(b.updatedAt || '') || 0) - (Date.parse(a.updatedAt || '') || 0);
   const prs = state.prs || [];
@@ -420,6 +428,9 @@ function listScreen() {
       },
         el('span', { class: 'num' }, `#${pr.number}`),
         el('span', { class: 'title', title: pr.title }, pr.title),
+        el('span', { class: 'states' },
+          pr.isDraft ? el('span', { class: 'badge st-draft' }, '◌ 초안') : el('span', { class: 'badge st-open' }, '● 열림'),
+          REVIEW_LABEL[pr.review] ? el('span', { class: 'badge rv-' + pr.review }, REVIEW_LABEL[pr.review]) : null),
         el('span', { class: 'author' }, pr.author),
         el('span', { class: 'when', title: pr.updatedAt || '' }, ago(pr.updatedAt)),
         el('span', { class: 'size' }, el('span', { class: 'plus' }, `+${pr.additions}`), ' ', el('span', { class: 'minus' }, `−${pr.deletions}`)),

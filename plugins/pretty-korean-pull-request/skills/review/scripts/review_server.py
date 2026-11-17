@@ -150,7 +150,7 @@ def build_payload(review, choice):
         if not body:
             raise Invalid(f"{item['path']}:{item['line']} 피드백의 본문이 비어 있습니다.")
         suggestion = str(chosen.get("suggestion", "")).rstrip("\n")
-        text = f"**[{item['severity']}]** {body}"
+        text = body
         if suggestion.strip():
             text += f"\n\n```suggestion\n{suggestion}\n```"
         comment = {"path": item["path"], "line": item["line"], "side": "RIGHT", "body": text}
@@ -527,8 +527,27 @@ def open_browser(url):
         return False
 
 
+def review_state(pr):
+    """PR의 리뷰 상태를 approved, changes, required, '' 중 하나로 정한다.
+
+    reviewDecision은 필수 리뷰 규칙이 없는 저장소에서 비어 있으므로, 그때는 리뷰어별 마지막 리뷰로 판단한다.
+    """
+    decision = pr.get("reviewDecision") or ""
+    if decision == "APPROVED":
+        return "approved"
+    if decision == "CHANGES_REQUESTED":
+        return "changes"
+    states = {r.get("state") for r in pr.get("latestReviews") or []}
+    if "CHANGES_REQUESTED" in states:
+        return "changes"
+    if "APPROVED" in states and decision != "REVIEW_REQUIRED":
+        return "approved"
+    return "required" if decision == "REVIEW_REQUIRED" else ""
+
+
 def pr_rows(raw, viewer):
-    """gh pr list --json number,title,author,additions,deletions,reviewRequests,updatedAt 출력을 페이지 형식으로 바꾼다."""
+    """gh pr list --json number,title,author,additions,deletions,reviewRequests,updatedAt,isDraft,reviewDecision,latestReviews
+    출력을 페이지 형식으로 바꾼다."""
     rows = []
     for pr in raw:
         requests = pr.get("reviewRequests") or []
@@ -540,6 +559,8 @@ def pr_rows(raw, viewer):
                 "additions": pr.get("additions", 0),
                 "deletions": pr.get("deletions", 0),
                 "updatedAt": pr.get("updatedAt") or "",
+                "isDraft": bool(pr.get("isDraft")),
+                "review": review_state(pr),
                 "isReviewRequested": any(r.get("login") == viewer for r in requests),
             }
         )

@@ -35,7 +35,7 @@ description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리�
    ```
 2. 열린 PR 목록을 서버에 넘겨 페이지를 연다.
    ```bash
-   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests,updatedAt \
+   gh pr list --state open --limit 500 --json number,title,author,additions,deletions,reviewRequests,updatedAt,isDraft,reviewDecision,latestReviews \
      | SERVER start --repo <저장소> --viewer <login>
    ```
 3. 출력에 따라 처리한다.
@@ -98,7 +98,7 @@ description: 저장소의 열린 PR을 골라 자연스러운 한국어로 리�
 - 합니다체로 쓰되, 제안과 질문은 "~하면 어떨까요?", "~한 의도인가요?"처럼 상대에게 판단을 맡기는 형태로 쓴다. "~해야 합니다"는 `버그`에만 쓴다.
 - 조사와 어미를 빼서 줄이지 않는다.
 - 코드 식별자, 파일 경로, 값은 백틱으로 감싸고, 영어 식별자 뒤의 조사는 붙여 쓴다.
-- 본문에 `[버그]` 같은 라벨을 쓰지 않는다. 라벨은 게시할 때 붙인다.
+- 본문에 `[버그]` 같은 라벨을 쓰지 않는다. 심각도는 리뷰 페이지에서만 보이고, 게시하는 코멘트에는 붙지 않는다.
 
 ```
 X  빈 목록 예외 가능. firstOrNull 권장.
@@ -151,7 +151,7 @@ O  회원 목록이 비어 있으면 `first()`가 `NoSuchElementException`을 �
 
 `wait`가 `{"type":"publish", "repo", "number", "payload", "comments"}`를 출력했을 때만 게시한다. 사용자가 페이지에서 게시를 누른 것이 승인이다. **다른 경로로는 게시하지 않는다.**
 
-`payload`는 서버가 사용자의 선택과 편집 내용으로 만든 GitHub 리뷰 API 요청 본문 파일이다. 심각도 라벨(`**[버그]**`)과 `suggestion` 블록, 리뷰 결과, 전체 의견이 이미 들어 있다. **내용을 다시 고치지 않고 그대로 게시한다.**
+`payload`는 서버가 사용자의 선택과 편집 내용으로 만든 GitHub 리뷰 API 요청 본문 파일이다. `suggestion` 블록, 리뷰 결과, 전체 의견이 이미 들어 있다. **내용을 다시 고치지 않고 그대로 게시한다.**
 
 1. 게시한다.
    ```bash
